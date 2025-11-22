@@ -1,0 +1,107 @@
+name: Autograding Tests
+on:
+  - push
+  - pull_request
+  - workflow_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run pytest and generate JUnit report
+        run: pytest --junitxml=results.xml
+
+      # --------------- 4 TESTS — SCORE EACH ONE -----------------
+      # Each test gets 25 points
+      # ----------------------------------------------------------
+
+      - name: Parse Test 1
+        id: t1
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: Duplicate Visitor Error
+          expected-output: "passed"
+          comparison-method: exact
+          command: 'bash -c "grep ''test_duplicate_visitor_error'' results.xml | grep -vq ''<failure'' && echo passed || echo failed"'
+          timeout: 10
+          max-score: 25
+
+      - name: Parse Test 2
+        id: t2
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: File Creation Test
+          expected-output: "passed"
+          comparison-method: exact
+          command: 'bash -c "grep ''test_file_is_created_if_missing'' results.xml | grep -vq ''<failure'' && echo passed || echo failed"'
+          timeout: 10
+          max-score: 25
+
+      - name: Parse Test 3
+        id: t3
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: Timestamp Test
+          expected-output: "passed"
+          comparison-method: exact
+          command: 'bash -c "grep ''test_timestamp_is_added'' results.xml | grep -vq ''<failure'' && echo passed || echo failed"'
+          timeout: 10
+          max-score: 25
+
+      - name: Parse Test 4
+        id: t4
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: Wait Time Enforcement
+          expected-output: "passed"
+          comparison-method: exact
+          command: 'bash -c "grep ''test_wait_time_enforced'' results.xml | grep -vq ''<failure'' && echo passed || echo failed"'
+          timeout: 10
+          max-score: 25
+
+      # --------------- REPORT RESULTS TO CLASSROOM -----------------
+
+      - name: Calculate Score
+        id: score
+        run: |
+          TOTAL=0
+          declare -A tests=( [test_duplicate_visitor_error]=25 [test_file_is_created_if_missing]=25 [test_timestamp_is_added]=25 [test_wait_time_enforced]=25 )
+          for t in "${!tests[@]}"; do
+            if grep "$t" results.xml | grep -vq '<failure'; then
+              TOTAL=$((TOTAL+tests[$t]))
+            fi
+          done
+          echo "score=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "Computed Score: $TOTAL / 100"
+
+      - name: Score Summary
+        if: always()
+        run: |
+          echo "Final Score: ${{ steps.score.outputs.score }} / 100" >> $GITHUB_STEP_SUMMARY
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          T1_RESULTS: "${{ steps.t1.outputs.result }}"
+          T2_RESULTS: "${{ steps.t2.outputs.result }}"
+          T3_RESULTS: "${{ steps.t3.outputs.result }}"
+          T4_RESULTS: "${{ steps.t4.outputs.result }}"
+        with:
+          runners: t1,t2,t3,t4
